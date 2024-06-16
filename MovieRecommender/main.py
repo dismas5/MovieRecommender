@@ -1,7 +1,7 @@
-from flask import Flask, request, jsonify
 import random
 import numpy as np
 import pandas as pd
+from flask import Flask, request, jsonify
 from sklearn.metrics.pairwise import cosine_similarity
 
 app = Flask(__name__)
@@ -13,17 +13,16 @@ movies = pd.read_csv('ml-100k/u.item', sep='|', encoding='latin-1', header=None,
                             'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 
                             'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'])
 
-movies = movies[['movie_id', 'title', 'Action', 'Adventure', 'Animation', 'Children\'s', 'Comedy',
-                 'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 'Musical',
-                 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western']]
+# Combine genres for each movie
+movies['genres'] = movies[['Action', 'Adventure', 'Animation', 'Children\'s', 'Comedy', 'Crime',
+                           'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror', 'Musical',
+                           'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western']].apply(
+                           lambda row: ', '.join(row.index[row == 1]), axis=1)
 
-genre_cols = ['Action', 'Adventure', 'Animation', 'Children\'s', 'Comedy', 'Crime', 'Documentary', 'Drama',
-              'Fantasy', 'Film-Noir', 'Horror', 'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 
-              'War', 'Western']
-movies['genres'] = movies[genre_cols].idxmax(axis=1)
-movies = movies.drop(columns=genre_cols)
+movies = movies[['movie_id', 'title', 'genres']]
 data = pd.merge(ratings, movies, on='movie_id')
 
+# Encode genres for embeddings
 genre_encoding = pd.get_dummies(movies['genres'])
 movies = movies.join(genre_encoding)
 movie_embeddings = movies.set_index('movie_id')[genre_encoding.columns].values
@@ -54,7 +53,8 @@ def recommend_movie(user_ratings, movie_embeddings, epsilon=0.1, exploration_rat
             similarity_scores -= genre_adjustment * (3 - rating)
 
     exploration_indices = [i for i, movie_id in enumerate(unrated_movies)
-                           if movies.loc[movies['movie_id'] == movie_id + 1, 'genres'].values[0] in unrated_genres]
+                           if any(genre in movies.loc[movies['movie_id'] == movie_id + 1, 'genres'].values[0].split(', ')
+                                  for genre in unrated_genres)]
 
     if random.random() < epsilon:
         if exploration_indices and random.random() < exploration_rate:
@@ -73,7 +73,17 @@ def recommend_movie(user_ratings, movie_embeddings, epsilon=0.1, exploration_rat
 def get_next_movie():
     movie_id = recommend_movie(user_ratings, movie_embeddings, epsilon=0.05, exploration_rate=0.2)
     movie_details = movies[movies['movie_id'] == movie_id][['movie_id', 'title', 'genres']].to_dict(orient='records')[0]
+    movie_details['genres'] = movie_details['genres'].split(', ')
     return jsonify(movie_details)
+
+@app.route('/get_movies_by_genre', methods=['GET'])
+def get_movies_by_genre(genre: str = "Animation"):
+    movie_details = movies[movies['genres'].str.contains(genre)][['movie_id', 'title', 'genres']].to_dict(orient='records')
+    return jsonify(movie_details)
+
+@app.route('/all_movies', methods=['GET'])
+def get_all_movies():
+    return jsonify(movies[['movie_id', 'title', 'genres']].to_dict(orient='records'))
 
 @app.route('/rate_movie', methods=['POST'])
 def rate_movie():
@@ -84,4 +94,4 @@ def rate_movie():
     return jsonify({'message': 'Rating received'}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=8080)
