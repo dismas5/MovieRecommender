@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from flask import Flask, request, jsonify
 from sklearn.metrics.pairwise import cosine_similarity
+import re
 
 app = Flask(__name__)
 
@@ -28,10 +29,15 @@ movies = movies.join(genre_encoding)
 movie_embeddings = movies.set_index('movie_id')[genre_encoding.columns].values
 
 user_ratings = {}
+unseen_movies = []
+
+def remove_year(movie_title):
+    pattern = r'\s*\(\d{4}\)$'
+    return re.sub(pattern, '', movie_title)
 
 def recommend_movie(user_ratings, movie_embeddings, epsilon=0.1, exploration_rate=0.2):
     rated_movies = list(user_ratings.keys())
-    unrated_movies = [movie for movie in range(len(movie_embeddings)) if movie + 1 not in rated_movies]
+    unrated_movies = [movie for movie in range(len(movie_embeddings)) if movie + 1 not in rated_movies and movie + 1 not in unseen_movies]
 
     if not rated_movies:
         return random.choice(unrated_movies) + 1
@@ -73,7 +79,8 @@ def recommend_movie(user_ratings, movie_embeddings, epsilon=0.1, exploration_rat
 def get_next_movie():
     movie_id = recommend_movie(user_ratings, movie_embeddings, epsilon=0.05, exploration_rate=0.2)
     movie_details = movies[movies['movie_id'] == movie_id][['movie_id', 'title', 'genres']].to_dict(orient='records')[0]
-    movie_details['genres'] = movie_details['genres'].split(', ')
+    movie_details['title'] = remove_year(movie_details['title'])
+    movie_details['movies_rated'] = len(user_ratings)
     return jsonify(movie_details)
 
 @app.route('/get_movies_by_genre', methods=['GET'])
@@ -90,7 +97,11 @@ def rate_movie():
     data = request.json
     movie_id = data['movie_id']
     rating = data['rating']
-    user_ratings[movie_id] = rating
+    
+    if rating == 0:
+        unseen_movies.append(movie_id)
+    else:
+        user_ratings[movie_id] = rating
     return jsonify({'message': 'Rating received'}), 200
 
 if __name__ == '__main__':
