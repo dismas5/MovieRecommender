@@ -56,15 +56,7 @@ genre_encoding = pd.get_dummies(movies['genres'])
 movies = movies.join(genre_encoding)
 movie_embeddings = movies.set_index('movie_id')[genre_encoding.columns].values
 
-# user_ratings = {}
-user_ratings = {
-  "13": 5,
-  "25": 4,
-  "26": 5,
-  "124": 2,
-  "1668": 5
-}
-
+user_ratings = {}
 unseen_movies = []
 
 def add_new_user_preferences(data, new_user_preferences, movie_titles):
