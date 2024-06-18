@@ -1,14 +1,13 @@
-//
-//  Movie.swift
-//  MovieRecommender
-//
-//  Created by Dimasik on 14.06.2024.
-//
-
 import Foundation
 
-struct Movie: Decodable {
-    let genres: String
-    let movie_id: Int
+struct Movie: Decodable, Equatable {
+    let id: Int
     let title: String
+    let genres: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "movieId"
+        case title
+        case genres
+    }
 }

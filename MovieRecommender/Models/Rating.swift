@@ -1,13 +1,18 @@
-//
-//  Rating.swift
-//  MovieRecommender
-//
-//  Created by Dimasik on 14.06.2024.
-//
 
-import Foundation
-
-struct Rating: Encodable {
-    let movie_id: Int
-    let rating: Int
+enum Rating: CaseIterable {
+    case veryBad
+    case bad
+    case neutral
+    case good
+    case veryGood
+    
+    var value: Int {
+        switch self {
+        case .veryBad: 1
+        case .bad: 2
+        case .neutral: 3
+        case .good: 4
+        case .veryGood: 5
+        }
+    }
 }
