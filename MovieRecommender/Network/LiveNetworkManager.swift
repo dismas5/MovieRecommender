@@ -67,6 +67,18 @@ final class LiveNetworkManager: NetworkManager {
         let imdbMovie = try decoder.decode(IMDBMovie.self, from: data)
         return imdbMovie
     }
+    
+    func fetchRecommendations() async throws -> [String] {
+        do {
+            let url = baseURL.appending(path: Endpoints.getRecommendation.rawValue)
+            let (data, _) = try await urlSession.data(from: url)
+            
+            let movies = try decoder.decode([String].self, from: data)
+            return movies
+        } catch {
+            throw Error.failedToGetRecommendations(underlyingError: error)
+        }
+    }
 }
 
 // MARK: Protocol access
@@ -81,6 +93,7 @@ extension LiveNetworkManager {
     enum Endpoints: String {
         case nextMovie = "next_movie"
         case rateMovie = "rate_movie"
+        case getRecommendation = "get_recommendation"
         case imdb = "http://www.omdbapi.com/?i=tt3896198&apikey=e21fc0f7"
     }
 }
@@ -97,6 +110,7 @@ extension LiveNetworkManager {
     enum Error: LocalizedError {
         case failedToFetchMovie(underlyingError: Swift.Error)
         case failedToPostRating(underlyingError: Swift.Error)
+        case failedToGetRecommendations(underlyingError: Swift.Error)
         case failedToFetchIMDBImageData(underlyingError: Swift.Error)
         case failedToCreateIMDBURL
         
@@ -106,6 +120,8 @@ extension LiveNetworkManager {
                 "Failed to fetch a new movie. Undelying error: \(underlyingError.localizedDescription)."
             case let .failedToPostRating(underlyingError):
                 "Failed to post a rating for a movie. Undelying error: \(underlyingError.localizedDescription)."
+            case let .failedToGetRecommendations(underlyingError):
+                "Failed to get movie recommendations. Underlying error: \(underlyingError.localizedDescription)"
             case let .failedToFetchIMDBImageData(underlyingError):
                 "Failed to fetch an image data from IMDB. Undelying error: \(underlyingError.localizedDescription)."
             case .failedToCreateIMDBURL:

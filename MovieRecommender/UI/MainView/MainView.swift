@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MainView: View {
-    let viewModel: MainViewModel
+    @Bindable var viewModel: MainViewModel
     
     var body: some View {
         ZStack {
@@ -51,6 +51,25 @@ struct MainView: View {
         }
         .task {
             await viewModel.fetchMovie()
+        }
+        .sheet(isPresented: $viewModel.sheetVisible) {
+            if let recommendedMovies = viewModel.recommendedMovies {
+                NavigationStack {
+                    List {
+                        ForEach(recommendedMovies, id: \.self) { movie in
+                            Text(movie)
+                        }
+                    }
+                    .navigationTitle("Recommended for you:")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") {
+                                viewModel.sheetVisible = false
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -113,18 +132,20 @@ struct MainView: View {
         HStack {
             Button("Haven't seen this movie") {
                 viewModel.handleRatingTapped(0)
-            }.cornerRadius(20)
+            }
             
             Spacer()
             
             Button("Stop rating") {
-                
+                viewModel.fetchRecommendations()
             }
+            #if !DEBUG
             .disabled(ratingCount <= 10)
-            .cornerRadius(20)
+            #endif
             .tint(.black)
         }
         .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.roundedRectangle(radius: 20))
         .controlSize(.large)
         .padding(.horizontal, 20)
         .disabled(viewModel.isLoading)

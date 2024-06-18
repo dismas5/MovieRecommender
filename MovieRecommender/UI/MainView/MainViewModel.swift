@@ -9,6 +9,15 @@ final class MainViewModel {
     private(set) var movie: Movie?
     private(set) var image: UIImage?
     private(set) var errorMessage: String?
+    private(set) var recommendedMovies: [String]?
+    var sheetVisible: Bool {
+        get {
+            recommendedMovies != nil
+        }
+        set {
+            recommendedMovies = nil
+        }
+    }
     
     init(networkManager: NetworkManager) {
         self.networkManager = networkManager
@@ -28,6 +37,26 @@ final class MainViewModel {
         }
         isLoading = false
     }
+    
+    @MainActor
+    func fetchRecommendations() {
+        isLoading = true
+        Task { @MainActor [weak self] in
+            defer {
+                isLoading = false
+            }
+            
+            guard let self else { return }
+            
+            do {
+                let movies = try await networkManager.fetchRecommendations()
+                recommendedMovies = movies
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
     
     @MainActor
     func handleRatingTapped(_ rating: Rating) {

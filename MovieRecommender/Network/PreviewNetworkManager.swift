@@ -32,6 +32,21 @@ final class PreviewNetworkManager: NetworkManager {
     
     func rate(movie: Movie, rating: Int) async throws {
     }
+    
+    func fetchRecommendations() async throws -> Array<String> {
+        [
+            "Movie recommendation 1",
+            "Movie recommendation 2",
+            "Movie recommendation 3",
+            "Movie recommendation 4",
+            "Movie recommendation 5",
+            "Movie recommendation 6",
+            "Movie recommendation 7",
+            "Movie recommendation 8",
+            "Movie recommendation 9",
+            "Movie recommendation 10",
+        ]
+    }
 }
 
 // MARK: Protocol access
