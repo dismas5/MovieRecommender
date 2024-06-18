@@ -31,6 +31,12 @@ final class MainViewModel {
     
     @MainActor
     func handleRatingTapped(_ rating: Rating) {
+        handleRatingTapped(rating.value)
+    }
+    
+    @MainActor
+    func handleRatingTapped(_ rating: Int)
+    {
         isLoading = true
         Task { [weak self] in
             defer {
@@ -40,7 +46,7 @@ final class MainViewModel {
             guard let self, let movie = movie else { return }
             
             do {
-                try await networkManager.rate(movie: movie, rating: rating.value)
+                try await networkManager.rate(movie: movie, rating: rating)
                 await fetchMovie()
             } catch {
                 errorMessage = error.localizedDescription

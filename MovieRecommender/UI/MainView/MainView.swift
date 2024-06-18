@@ -17,12 +17,14 @@ struct MainView: View {
                     
                     VStack {
                         movieDetailsView(movie)
-                            .padding(.horizontal, 36)
+                            .padding(.horizontal, 20)
                             .foregroundStyle(.ultraThickMaterial)
                         
                         RatingButtons(action: viewModel.handleRatingTapped)
                             .disabled(viewModel.isLoading)
                             .padding(.horizontal, 24)
+                            .padding(.vertical, 10)
+                        controlButtons(movie.moviesRated)
                     }
                     .padding(.top, 16)
                     .background {
@@ -107,22 +109,24 @@ struct MainView: View {
     
     @MainActor
     @ViewBuilder
-    private var controlButtons: some View {
+    private func controlButtons(_ ratingCount: Int) -> some View {
         HStack {
             Button("Haven't seen this movie") {
-                
-            }
+                viewModel.handleRatingTapped(0)
+            }.cornerRadius(20)
             
             Spacer()
             
             Button("Stop rating") {
                 
             }
+            .disabled(ratingCount <= 10)
+            .cornerRadius(20)
             .tint(.black)
         }
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-        .padding(.bottom)
+        .padding(.horizontal, 20)
         .disabled(viewModel.isLoading)
     }
     
