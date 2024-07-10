@@ -1,18 +1,17 @@
-import random
-import numpy as np
 import pandas as pd
-from flask import Flask, request, jsonify
-from sklearn.metrics.pairwise import cosine_similarity
 import re
-import tensorflow as tf
+
+from tensorflow.keras.models import load_model
+from flask import Flask, request, jsonify
 
 from paths import *
-from recommendations import recommend_new_movies
+from recommendations import recommend_new_movies, recommend_movie_for_rating
 from recommendation_model import RecommenderNet
+from user_rating import UserRating
 
 app = Flask(__name__)
 
-model = tf.keras.models.load_model(RECOMMENDATION_MODEL_PATH, custom_objects={'RecommenderNet': RecommenderNet})
+model = load_model(RECOMMENDATION_MODEL_PATH, custom_objects={'RecommenderNet': RecommenderNet})
 
 genres_list = pd.read_csv(DATASET_FOLDER_PATH + '/u.genre', sep='|', names=['genres', 'id'])
 genres_list = genres_list['genres'].to_list()
@@ -34,74 +33,33 @@ genre_encoding = pd.get_dummies(movies['genres'])
 movies = movies.join(genre_encoding)
 movie_embeddings = movies.set_index('movie_id')[genre_encoding.columns].values
 
-user_ratings = {}
-unseen_movies = []
+ratings = UserRating()
 
 def remove_year(movie_title):
     pattern = r'\s*\(\d{4}\)$'
     return re.sub(pattern, '', movie_title)
 
-def recommend_movie_for_rating(user_ratings, movie_embeddings, epsilon=0.1, exploration_rate=0.2):
-    rated_movies = list(user_ratings.keys())
-    unrated_movies = [movie for movie in range(len(movie_embeddings)) if movie + 1 not in rated_movies and movie + 1 not in unseen_movies]
 
-    if not rated_movies:
-        return random.choice(unrated_movies) + 1
-
-    rated_genres = set(movies.loc[movies['movie_id'].isin(rated_movies), 'genres'])
-    all_genres = set(movies['genres'])
-    unrated_genres = all_genres - rated_genres
-
-    rated_embeddings = np.array([movie_embeddings[movie - 1] for movie in rated_movies])
-    mean_embedding = np.mean(rated_embeddings, axis=0).reshape(1, -1)
-    similarities = cosine_similarity(mean_embedding, movie_embeddings[unrated_movies])
-    similarity_scores = similarities.flatten()
-
-    for movie_id, rating in user_ratings.items():
-        genre = movies.loc[movies['movie_id'] == movie_id, 'genres'].values[0]
-        genre_col = genre_encoding.columns.get_loc(genre)
-        if rating <= 2:
-            genre_adjustment = movie_embeddings[unrated_movies, genre_col]
-            similarity_scores -= genre_adjustment * (3 - rating)
-
-    exploration_indices = [i for i, movie_id in enumerate(unrated_movies)
-                           if any(genre in movies.loc[movies['movie_id'] == movie_id + 1, 'genres'].values[0].split(', ')
-                                  for genre in unrated_genres)]
-
-    if random.random() < epsilon:
-        if exploration_indices and random.random() < exploration_rate:
-            next_movie = unrated_movies[random.choice(exploration_indices)]
-        else:
-            next_movie = random.choice(unrated_movies)
-    else:
-        if exploration_indices and random.random() < exploration_rate:
-            next_movie = unrated_movies[random.choice(exploration_indices)]
-        else:
-            next_movie = unrated_movies[np.argmax(similarity_scores)]
-    
-    return next_movie + 1
-
-
-@app.route('/get_recommendation', methods=['GET'])
+@app.route('/get_recommendation')
 def get_recommendation():
-    preferences = [ {'movie_id': id, 'rating': rating } for id, rating in user_ratings.items()]
+    preferences = [ {'movie_id': id, 'rating': rating } for id, rating in ratings.data()]
     recommended_movies = recommend_new_movies(model, data, preferences, movies[['movie_id', 'title']])
     return jsonify(recommended_movies.tolist())
 
-@app.route('/next_movie', methods=['GET'])
+@app.route('/next_movie')
 def get_next_movie():
-    movie_id = recommend_movie_for_rating(user_ratings, movie_embeddings, epsilon=0.05, exploration_rate=0.2)
+    movie_id = recommend_movie_for_rating(movies, ratings, movie_embeddings, genre_encoding, epsilon=0.05, exploration_rate=0.2)
     movie_details = movies[movies['movie_id'] == movie_id][['movie_id', 'title', 'genres']].to_dict(orient='records')[0]
     movie_details['title'] = remove_year(movie_details['title'])
-    movie_details['movies_rated'] = len(user_ratings)
+    movie_details['movies_rated'] = len(ratings)
     return jsonify(movie_details)
 
-@app.route('/get_movies_by_genre', methods=['GET'])
+@app.route('/get_movies_by_genre')
 def get_movies_by_genre(genre: str = "Animation"):
     movie_details = movies[movies['genres'].str.contains(genre)][['movie_id', 'title', 'genres']].to_dict(orient='records')
     return jsonify(movie_details)
 
-@app.route('/all_movies', methods=['GET'])
+@app.route('/all_movies')
 def get_all_movies():
     return jsonify(movies[['movie_id', 'title', 'genres']].to_dict(orient='records'))
 
@@ -111,10 +69,7 @@ def rate_movie():
     movie_id = data['movie_id']
     rating = data['rating']
     
-    if rating == 0:
-        unseen_movies.append(movie_id)
-    else:
-        user_ratings[movie_id] = rating
+    ratings.append(movie_id, rating)
     return jsonify({'message': 'Rating received'}), 200
 
 if __name__ == '__main__':
